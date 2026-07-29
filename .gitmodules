@@ -1,0 +1,6 @@
+[submodule "model-providers/routerai"]
+	path = model-providers/routerai
+	url = https://github.com/temga/hermes-routerai-plugin.git
+[submodule "platforms/max"]
+	path = platforms/max
+	url = https://github.com/temga/max-hermes-plugin.git
