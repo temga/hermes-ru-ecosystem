@@ -6,34 +6,47 @@
 
 ## Состав
 
-| Плагин | Тип | Описание | Репозиторий |
+| Плагин | Тип | Способ установки | Репозиторий |
 |---|---|---|---|
-| **RouterAI** | model-provider | OpenAI-совместимый API-агрегатор (GPT, Claude, Gemini и др.). Оплата в рублях, без VPN. | [temga/hermes-routerai-plugin](https://github.com/temga/hermes-routerai-plugin) |
-| **MAX Messenger** | platform | Адаптер для Max Messenger (max.ru). Webhook-режим, голосовые, файлы, inline-клавиатуры. | [temga/max-hermes-plugin](https://github.com/temga/max-hermes-plugin) |
+| **RouterAI** | model-provider | symlink (Hermes не поддерживает entry-points для model-providers) | [temga/hermes-routerai-plugin](https://github.com/temga/hermes-routerai-plugin) |
+| **MAX Messenger** | platform | pip install (entry-points, proper way) | [temga/max-hermes-plugin](https://github.com/temga/max-hermes-plugin) |
 
 ## Установка
 
-### 1. Клонирование
+### Вариант 1: One-liner (рекомендуется)
+
+    curl -fsSL https://raw.githubusercontent.com/temga/hermes-ru-ecosystem/main/install.sh | bash
+
+Скрипт сам клонирует репозиторий с сабмодулями в `~/.hermes/hermes-ru-ecosystem` и устанавливает плагины. Если `git` не установлен — скачивает tarball-архивы с GitHub.
+
+### Вариант 2: Вручную
 
     git clone --recursive https://github.com/temga/hermes-ru-ecosystem.git
     cd hermes-ru-ecosystem
-
-### 2. Установка плагинов
-
     ./install.sh
 
-Скрипт создаёт символические ссылки в `~/.hermes/plugins/` для каждого плагина.
-
-Можно установить отдельные плагины:
+### Установка отдельных плагинов
 
     ./install.sh routerai
     ./install.sh max
 
-### 3. Настройка
+### Как это работает
 
-#### RouterAI
+Способ установки зависит от типа плагина:
 
-    export ROUTERAI_API_KEY="ваш-api-ключ"
+- **RouterAI (model-provider)** — Hermes обнаруживает model-providers только сканированием директории `~/.hermes/plugins/model-providers/`. Entry-points не поддерживаются. Скрипт создаёт symlink: `~/.hermes/plugins/model-providers/routerai → ./model-providers/routerai`.
+
+- **MAX (platform)** — Hermes поддерживает entry-points через группу `hermes_agent.plugins`. Плагин устанавливается через `pip install -e` (editable-режим из клона) или `pip install` (из tarball). После установки Hermes автоматически находит плагин через `importlib.metadata`.
+
+## Настройка
+
+Hermes хранит секреты в `~/.hermes/.env`, а не через `export`. Можно также использовать `hermes setup` — мастер настройки запросит ключи автоматически (благодаря `requires_env` в `plugin.yaml`).
+
+### RouterAI
+
+Добавьте в `~/.hermes/.env`:
+
+    ROUTERAI_API_KEY=ваш-api-ключ
 
 Выбор провайдера в Hermes:
 
@@ -41,11 +54,13 @@
 
 Выберите `routerai` из списка.
 
-#### MAX Messenger
+### MAX Messenger
 
-Зависимости:
+Добавьте в `~/.hermes/.env`:
 
-    pip install maxapi
+    MAX_BOT_TOKEN=токен_бота
+    MAX_WEBHOOK_URL=https://ваш-домен/max/webhook
+    MAX_WEBHOOK_SECRET=секрет_5_256_символов
 
 Конфигурация `~/.hermes/config.yaml`:
 
@@ -67,39 +82,40 @@ gateway:
         webhook_path: "/max/webhook"
 ```
 
-Переменные окружения:
-
-    MAX_BOT_TOKEN=токен_бота
-    MAX_WEBHOOK_URL=https://ваш-домен/max/webhook
-    MAX_WEBHOOK_SECRET=секрет_5_256_символов
-
 Подробности — в [README MAX-плагина](platforms/max/README.md).
 
 ## Обновление
 
-    cd hermes-ru-ecosystem
+### Если установлен через git
+
+    cd ~/.hermes/hermes-ru-ecosystem
     git pull
     git submodule update --remote
+    ./install.sh
 
-Симлинки автоматически указывают на обновлённые файлы.
+### Если установлен через one-liner
+
+Просто запустите ту же команду снова:
+
+    curl -fsSL https://raw.githubusercontent.com/temga/hermes-ru-ecosystem/main/install.sh | bash
 
 ## Структура
 
 ```
 hermes-ru-ecosystem/
-├── install.sh                          # скрипт установки (симлинки)
+├── install.sh                          # скрипт установки
 ├── README.md
 ├── model-providers/
 │   └── routerai/                       # git submodule → hermes-routerai-plugin
-│       ├── __init__.py
+│       ├── __init__.py                 # register_provider(ProviderProfile(...))
 │       ├── plugin.yaml
 │       └── README.md
 └── platforms/
     └── max/                            # git submodule → max-hermes-plugin
-        ├── __init__.py
-        ├── adapter.py
+        ├── __init__.py                 # from .adapter import register
+        ├── adapter.py                  # register(ctx) → ctx.register_platform(...)
         ├── plugin.yaml
-        ├── pyproject.toml
+        ├── pyproject.toml              # entry-points: hermes_agent.plugins
         └── README.md
 ```
 
@@ -108,15 +124,6 @@ hermes-ru-ecosystem/
 ### EXPENSIVE MODEL WARNING (RouterAI)
 
 RouterAI отдаёт цены в рублях через `/models` API. Hermes предполагает доллары, поэтому при выборе некоторых моделей может появляться предупреждение о дорогой модели. Реальная цена в долларах ниже порогов. Просто подтвердите выбор («Switch anyway»). Подробности — в [README RouterAI](model-providers/routerai/README.md).
-
-## Как это работает
-
-`install.sh` создаёт символические ссылки:
-
-- `~/.hermes/plugins/model-providers/routerai → ./model-providers/routerai`
-- `~/.hermes/plugins/platforms/max → ./platforms/max`
-
-Hermes обнаруживает плагины через сканирование директорий `~/.hermes/plugins/`. Симлинки работают как обычные директории, поэтому отдельная настройка не требуется.
 
 ## Лицензия
 

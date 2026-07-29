@@ -9,6 +9,11 @@
 # В режиме one-liner скрипт сам клонирует репозиторий с сабмодулями
 # в ~/.hermes/hermes-ru-ecosystem и продолжает установку оттуда.
 #
+# Способ установки зависит от типа плагина:
+#   - RouterAI (model-provider): symlink в ~/.hermes/plugins/model-providers/
+#     (Hermes не поддерживает entry-points для model-providers)
+#   - MAX (platform): pip install (entry-points, proper way)
+#
 # Использование:
 #   ./install.sh              — установить все плагины
 #   ./install.sh routerai     — установить только RouterAI
@@ -42,12 +47,6 @@ NC='\033[0m'
 info()  { echo -e "${GREEN}✓${NC} $1"; }
 warn()  { echo -e "${YELLOW}⚠${NC} $1"; }
 error() { echo -e "${RED}✗${NC} $1"; }
-
-# ── Реестр плагинов ───────────────────────────────────────────────────
-declare -A PLUGINS=(
-    ["routerai"]="model-providers/routerai:model-providers/routerai"
-    ["max"]="platforms/max:platforms/max"
-)
 
 # ── Self-bootstrap: если скрипт запущен через curl | bash ─────────────
 # Детект: нет .git рядом → скрипт скачан, а не клонирован
@@ -109,15 +108,22 @@ if [[ ! -d "$SCRIPT_DIR/.git" ]]; then
     fi
 fi
 
-# ── Установка плагинов ────────────────────────────────────────────────
-install_plugin() {
+# ── Реестр плагинов ───────────────────────────────────────────────────
+# Формат: "src_rel:method"
+#   src_rel  — путь к плагину в репозитории
+#   method   — symlink (для model-providers) или pip (для platform)
+declare -A PLUGINS=(
+    ["routerai"]="model-providers/routerai:symlink"
+    ["max"]="platforms/max:pip"
+)
+
+# ── Установка через symlink (model-providers) ─────────────────────────
+install_symlink() {
     local name="$1"
-    local entry="${PLUGINS[$name]}"
-    local src_rel="${entry%%:*}"
-    local dst_rel="${entry##*:}"
+    local src_rel="$2"
 
     local src="$SCRIPT_DIR/$src_rel"
-    local dst="$PLUGINS_DIR/$dst_rel"
+    local dst="$PLUGINS_DIR/model-providers/$name"
 
     if [[ ! -d "$src" ]]; then
         error "Плагин '$name' не найден: $src"
@@ -140,7 +146,57 @@ install_plugin() {
     fi
 }
 
+# ── Установка через pip (platform) ────────────────────────────────────
+install_pip() {
+    local name="$1"
+    local src_rel="$2"
+
+    local src="$SCRIPT_DIR/$src_rel"
+
+    if [[ ! -d "$src" ]]; then
+        error "Плагин '$name' не найден: $src"
+        return 1
+    fi
+
+    if ! command -v pip &>/dev/null && ! command -v pip3 &>/dev/null; then
+        error "pip не найден. Установите pip: https://pip.pypa.io/en/stable/installation/"
+        return 1
+    fi
+
+    local pip_cmd="pip"
+    if ! command -v pip &>/dev/null; then
+        pip_cmd="pip3"
+    fi
+
+    # pip install -e для editable-режима (симлинк на исходники)
+    # При установке из tarball (без git) — обычный install
+    if [[ -d "$src/.git" ]] || [[ -f "$src/pyproject.toml" ]]; then
+        if [[ -d "$src/.git" ]]; then
+            "$pip_cmd" install -e "$src"
+        else
+            "$pip_cmd" install "$src"
+        fi
+        info "Установлен через pip: $name"
+    else
+        error "Нет pyproject.toml в $src"
+        return 1
+    fi
+}
+
 # ── Установка ─────────────────────────────────────────────────────────
+install_plugin() {
+    local name="$1"
+    local entry="${PLUGINS[$name]}"
+    local src_rel="${entry%%:*}"
+    local method="${entry##*:}"
+
+    case "$method" in
+        symlink) install_symlink "$name" "$src_rel" ;;
+        pip)     install_pip "$name" "$src_rel" ;;
+        *)       error "Неизвестный метод установки: $method"; return 1 ;;
+    esac
+}
+
 if [[ $# -gt 0 ]]; then
     for name in "$@"; do
         if [[ -z "${PLUGINS[$name]+isset}" ]]; then
