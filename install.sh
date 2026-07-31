@@ -2,6 +2,11 @@
 #
 # install.sh — установка плагинов российской экосистемы для Hermes Agent.
 #
+# Все плагины устанавливаются единым способом — через встроенный менеджер
+# плагинов Hermes:
+#
+#   hermes plugins install temga/<repo> --enable
+#
 # Поддерживает два режима:
 #   1. Локальный:  ./install.sh          (из клонированного репозитория)
 #   2. One-liner:  curl -fsSL <url> | bash
@@ -9,15 +14,12 @@
 # В режиме one-liner скрипт сам клонирует репозиторий с сабмодулями
 # в ~/.hermes/hermes-ru-ecosystem и продолжает установку оттуда.
 #
-# Способ установки зависит от типа плагина:
-#   - RouterAI (model-provider): symlink в ~/.hermes/plugins/model-providers/
-#     (Hermes не поддерживает entry-points для model-providers)
-#   - MAX (platform): pip install (entry-points, proper way)
-#
 # Использование:
 #   ./install.sh              — установить все плагины
-#   ./install.sh routerai     — установить только RouterAI
-#   ./install.sh max          — установить только MAX
+#   ./install.sh routerai     — установить только RouterAI (model-provider)
+#   ./install.sh neuraldeep   — установить только NeuralDeep (model-provider)
+#   ./install.sh max          — установить только MAX (platform)
+#   ./install.sh routerai-imagen — установить только RouterAI Image Gen (backend)
 #
 set -euo pipefail
 
@@ -25,19 +27,7 @@ REPO_URL="https://github.com/temga/hermes-ru-ecosystem.git"
 TARBALL_URL="https://github.com/temga/hermes-ru-ecosystem/archive/refs/heads/main.tar.gz"
 CLONE_DIR="${HERMES_RU_ECOSYSTEM_DIR:-$HOME/.hermes/hermes-ru-ecosystem}"
 
-# URL tarball-ов отдельных плагинов (для режима без git)
-declare -A PLUGIN_TARBALLS=(
-    ["routerai"]="https://github.com/temga/hermes-routerai-plugin/archive/refs/heads/main.tar.gz"
-    ["max"]="https://github.com/temga/max-hermes-plugin/archive/refs/heads/main.tar.gz"
-)
-# Имя папки внутри tarball (GitHub: <repo>-main/)
-declare -A PLUGIN_TARBALL_DIRS=(
-    ["routerai"]="hermes-routerai-plugin-main"
-    ["max"]="max-hermes-plugin-main"
-)
-
 HERMES_HOME="${HERMES_HOME:-$HOME/.hermes}"
-PLUGINS_DIR="$HERMES_HOME/plugins"
 
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -69,14 +59,13 @@ if [[ ! -d "$SCRIPT_DIR/.git" ]]; then
         SCRIPT_DIR="$CLONE_DIR"
         info "Клон готов: $CLONE_DIR"
     else
-        # Git нет — скачиваем tarball основного репо + отдельные tarball'ы плагинов
+        # Git нет — скачиваем tarball основного репо
         info "Git не найден — скачиваю tarball..."
         if [[ -d "$CLONE_DIR" ]]; then
             rm -rf "$CLONE_DIR"
         fi
         mkdir -p "$CLONE_DIR"
 
-        # Основной репо (install.sh, README, .env.example)
         tmp_tar="$(mktemp)"
         tmp_extract="$(mktemp -d)"
         curl -fsSL "$TARBALL_URL" -o "$tmp_tar"
@@ -85,116 +74,35 @@ if [[ ! -d "$SCRIPT_DIR/.git" ]]; then
         cp -r "$tmp_extract"/hermes-ru-ecosystem-main/.* "$CLONE_DIR/" 2>/dev/null || true
         rm -rf "$tmp_extract" "$tmp_tar"
 
-        # Отдельные плагины (сабмодули не входят в tarball основного репо)
-        for pname in "${!PLUGIN_TARBALLS[@]}"; do
-            local entry="${PLUGINS[$pname]}"
-            local src_rel="${entry%%:*}"
-            local dst_dir="$CLONE_DIR/$src_rel"
-            mkdir -p "$dst_dir"
-            tmp_tar="$(mktemp)"
-            tmp_extract="$(mktemp -d)"
-            curl -fsSL "${PLUGIN_TARBALLS[$pname]}" -o "$tmp_tar"
-            tar -xzf "$tmp_tar" -C "$tmp_extract"
-            cp -r "$tmp_extract"/"${PLUGIN_TARBALL_DIRS[$pname]}"/* "$dst_dir/"
-            cp -r "$tmp_extract"/"${PLUGIN_TARBALL_DIRS[$pname]}"/.* "$dst_dir/" 2>/dev/null || true
-            rm -rf "$tmp_extract" "$tmp_tar"
-            info "Скачан плагин: $pname"
-        done
-
         cd "$CLONE_DIR"
         SCRIPT_DIR="$CLONE_DIR"
         info "Распаковано: $CLONE_DIR"
-        warn "Git не установлен — обновляйте через повторный запуск скрипта."
+        warn "Git не установлен — плагины будут установлены через hermes plugins install."
     fi
 fi
 
 # ── Реестр плагинов ───────────────────────────────────────────────────
-# Формат: "src_rel:method"
-#   src_rel  — путь к плагину в репозитории
-#   method   — symlink (для model-providers) или pip (для platform)
+# Формат: "repo_name"
+#   repo_name — аргумент для `hermes plugins install temga/<repo_name> --enable`
 declare -A PLUGINS=(
-    ["routerai"]="model-providers/routerai:symlink"
-    ["max"]="platforms/max:pip"
+    ["routerai"]="hermes-routerai-plugin"
+    ["neuraldeep"]="hermes-neuraldeep-chat"
+    ["max"]="max-hermes-plugin"
+    ["routerai-imagen"]="hermes-plugin-routerai-imagegen"
 )
 
-# ── Установка через symlink (model-providers) ─────────────────────────
-install_symlink() {
-    local name="$1"
-    local src_rel="$2"
-
-    local src="$SCRIPT_DIR/$src_rel"
-    local dst="$PLUGINS_DIR/model-providers/$name"
-
-    if [[ ! -d "$src" ]]; then
-        error "Плагин '$name' не найден: $src"
-        return 1
-    fi
-
-    mkdir -p "$(dirname "$dst")"
-
-    if [[ -L "$dst" ]]; then
-        rm "$dst"
-        ln -s "$src" "$dst"
-        info "Обновлён симлинк: $dst → $src"
-    elif [[ -d "$dst" ]]; then
-        warn "Директория уже существует (не симлинк): $dst"
-        warn "Удалите её вручную: rm -rf \"$dst\""
-        return 1
-    else
-        ln -s "$src" "$dst"
-        info "Установлен: $dst → $src"
-    fi
-}
-
-# ── Установка через pip (platform) ────────────────────────────────────
-install_pip() {
-    local name="$1"
-    local src_rel="$2"
-
-    local src="$SCRIPT_DIR/$src_rel"
-
-    if [[ ! -d "$src" ]]; then
-        error "Плагин '$name' не найден: $src"
-        return 1
-    fi
-
-    if ! command -v pip &>/dev/null && ! command -v pip3 &>/dev/null; then
-        error "pip не найден. Установите pip: https://pip.pypa.io/en/stable/installation/"
-        return 1
-    fi
-
-    local pip_cmd="pip"
-    if ! command -v pip &>/dev/null; then
-        pip_cmd="pip3"
-    fi
-
-    # pip install -e для editable-режима (симлинк на исходники)
-    # При установке из tarball (без git) — обычный install
-    if [[ -d "$src/.git" ]] || [[ -f "$src/pyproject.toml" ]]; then
-        if [[ -d "$src/.git" ]]; then
-            "$pip_cmd" install -e "$src"
-        else
-            "$pip_cmd" install "$src"
-        fi
-        info "Установлен через pip: $name"
-    else
-        error "Нет pyproject.toml в $src"
-        return 1
-    fi
-}
-
-# ── Установка ─────────────────────────────────────────────────────────
+# ── Установка через hermes plugins install ────────────────────────────
 install_plugin() {
     local name="$1"
-    local entry="${PLUGINS[$name]}"
-    local src_rel="${entry%%:*}"
-    local method="${entry##*:}"
+    local repo="${PLUGINS[$name]}"
 
-    case "$method" in
-        symlink) install_symlink "$name" "$src_rel" ;;
-        pip)     install_pip "$name" "$src_rel" ;;
-        *)       error "Неизвестный метод установки: $method"; return 1 ;;
-    esac
+    if ! command -v hermes &>/dev/null; then
+        error "hermes не найден в PATH. Установите Hermes Agent: https://github.com/NousResearch/hermes-agent"
+        return 1
+    fi
+
+    hermes plugins install "temga/$repo" --enable
+    info "Установлен: $name (temga/$repo)"
 }
 
 if [[ $# -gt 0 ]]; then

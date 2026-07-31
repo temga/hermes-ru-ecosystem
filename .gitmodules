@@ -4,3 +4,9 @@
 [submodule "platforms/max"]
 	path = platforms/max
 	url = https://github.com/temga/max-hermes-plugin.git
+[submodule "backends/routerai-imagegen"]
+	path = backends/routerai-imagegen
+	url = https://github.com/temga/hermes-plugin-routerai-imagegen.git
+[submodule "model-providers/neuraldeep"]
+	path = model-providers/neuraldeep
+	url = https://github.com/temga/hermes-neuraldeep-chat.git
