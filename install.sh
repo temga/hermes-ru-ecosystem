@@ -81,6 +81,54 @@ if [[ ! -d "$SCRIPT_DIR/.git" ]]; then
     fi
 fi
 
+# ── Установка Hermes Agent (если не установлен) ──────────────────────
+ensure_hermes() {
+    # 1. Уже в PATH?
+    if command -v hermes &>/dev/null; then
+        info "Hermes Agent найден в PATH."
+        return 0
+    fi
+
+    # 2. Установлен, но ~/.local/bin не в PATH?
+    if [[ -x "$HOME/.local/bin/hermes" ]]; then
+        info "Hermes Agent найден в ~/.local/bin — добавляю в PATH."
+        export PATH="$HOME/.local/bin:$PATH"
+        return 0
+    fi
+
+    # 3. Не установлен — клонируем с GitHub и запускаем setup-hermes.sh
+    warn "Hermes Agent не найден. Устанавливаю из GitHub..."
+
+    local HERMES_REPO="https://github.com/NousResearch/hermes-agent.git"
+    local HERMES_SRC="$HERMES_HOME/hermes-agent"
+
+    if [[ -d "$HERMES_SRC/.git" ]]; then
+        info "Обновляю существующий клон Hermes: $HERMES_SRC"
+        cd "$HERMES_SRC"
+        git pull --ff-only
+    else
+        info "Клонирую Hermes Agent → $HERMES_SRC"
+        git clone --depth 1 "$HERMES_REPO" "$HERMES_SRC"
+        cd "$HERMES_SRC"
+    fi
+
+    # setup-hermes.sh интерактивный — отказываемся от ripgrep и setup wizard
+    info "Запускаю setup-hermes.sh (неинтерактивный режим)..."
+    printf 'n\n\n' | bash setup-hermes.sh
+
+    # Проверяем результат
+    if [[ -x "$HOME/.local/bin/hermes" ]]; then
+        export PATH="$HOME/.local/bin:$PATH"
+        info "Hermes Agent установлен."
+    else
+        error "Установка Hermes не удалась. См. вывод выше."
+        error "Установите вручную: https://github.com/NousResearch/hermes-agent"
+        return 1
+    fi
+}
+
+ensure_hermes
+
 # ── Реестр плагинов ───────────────────────────────────────────────────
 # Формат: "repo_name"
 #   repo_name — аргумент для `hermes plugins install temga/<repo_name> --enable`
@@ -91,18 +139,53 @@ declare -A PLUGINS=(
     ["routerai-imagen"]="hermes-plugin-routerai-imagegen"
 )
 
+# Model-provider плагины требуют дополнительного шага после install.
+# `hermes plugins install` клонирует репозиторий плоско в
+# ~/.hermes/plugins/<manifest_name>/, но Provider Registry сканирует только
+# ~/.hermes/plugins/model-providers/<name>/. Симлинк устраняет разрыв.
+# Формат: [short_name]="manifest_name" (manifest_name — поле name из plugin.yaml)
+declare -A MODEL_PROVIDERS=(
+    ["routerai"]="routerai-provider"
+    ["neuraldeep"]="neuraldeep-provider"
+)
+
+# ── Симлинк для model-provider плагинов ──────────────────────────────
+link_model_provider() {
+    local name="$1"       # short name (routerai, neuraldeep)
+    local manifest="$2"   # manifest name from plugin.yaml (routerai-provider, …)
+
+    local plugins_dir="$HERMES_HOME/plugins"
+    local target="$plugins_dir/$manifest"
+    local link="$plugins_dir/model-providers/$name"
+
+    if [[ ! -d "$target" ]]; then
+        warn "Каталог $target не найден — пропускаю симлинк для $name"
+        return 0
+    fi
+
+    mkdir -p "$plugins_dir/model-providers"
+    rm -f "$link"
+    ln -s "$target" "$link"
+    info "Симлинк: model-providers/$name → $manifest"
+}
+
 # ── Установка через hermes plugins install ────────────────────────────
 install_plugin() {
     local name="$1"
     local repo="${PLUGINS[$name]}"
 
     if ! command -v hermes &>/dev/null; then
-        error "hermes не найден в PATH. Установите Hermes Agent: https://github.com/NousResearch/hermes-agent"
+        error "hermes недоступен. ensure_hermes() должен был это обработать."
         return 1
     fi
 
     hermes plugins install "temga/$repo" --enable
     info "Установлен: $name (temga/$repo)"
+
+    # Model-provider плагины: создаём симлинк в model-providers/
+    if [[ -n "${MODEL_PROVIDERS[$name]+isset}" ]]; then
+        link_model_provider "$name" "${MODEL_PROVIDERS[$name]}"
+    fi
 }
 
 if [[ $# -gt 0 ]]; then
@@ -124,4 +207,21 @@ else
 fi
 
 echo ""
-info "Готово! Перезапустите Hermes, чтобы плагины вступили в силу."
+info "Плагины установлены. Перезапустите Hermes, чтобы они вступили в силу."
+
+# ── Настройка (если Hermes только что установлен) ────────────────────
+# hermes setup читает requires_env из plugin.yaml установленных плагинов
+# и запрашивает нужные API-ключи. Запускаем только после установки плагинов.
+if [[ -t 0 ]]; then
+    echo ""
+    read -p "Запустить мастер настройки (hermes setup)? [Y/n] " -n 1 -r
+    echo
+    if [[ $REPLY =~ ^[Yy]$ ]] || [[ -z $REPLY ]]; then
+        hermes setup
+    else
+        info "Настройте Hermes позже командой: hermes setup"
+    fi
+else
+    # curl | bash — нет терминала, инструктируем пользователя
+    info "Для настройки API-ключей выполните: hermes setup"
+fi

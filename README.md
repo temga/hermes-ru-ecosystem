@@ -4,6 +4,12 @@
 
 Набор плагинов для [Hermes Agent](https://github.com/NousResearch/hermes-agent), обеспечивающих работу с российскими сервисами: API-провайдеры, мессенджеры и генерация изображений.
 
+> **Быстрый старт:** одна команда установит и Hermes Agent, и все плагины российской экосистемы:
+>
+>     curl -fsSL https://raw.githubusercontent.com/temga/hermes-ru-ecosystem/main/install.sh | bash
+>
+> Если Hermes уже установлен — установятся только плагины.
+
 ## Состав
 
 | Плагин | Тип | Репозиторий |
@@ -19,11 +25,13 @@
 
 ## Установка
 
+Скрипт `install.sh` — это **основной способ установки нового инстанса Hermes Agent** с плагинами российской экосистемы. Если Hermes ещё не установлен, скрипт автоматически установит его из GitHub (`github.com/NousResearch/hermes-agent`) — официальный установщик `hermes-agent.nousresearch.com` недоступен из России. Если Hermes уже установлен — скрипт сразу перейдёт к установке плагинов.
+
 ### Вариант 1: One-liner (рекомендуется)
 
     curl -fsSL https://raw.githubusercontent.com/temga/hermes-ru-ecosystem/main/install.sh | bash
 
-Скрипт клонирует репозиторий с сабмодулями в `~/.hermes/hermes-ru-ecosystem` и устанавливает все плагины через `hermes plugins install`. Если `git` не установлен — скачивает tarball-архив с GitHub.
+Скрипт клонирует репозиторий с сабмодулями в `~/.hermes/hermes-ru-ecosystem`, при необходимости устанавливает Hermes Agent, а затем устанавливает все плагины через `hermes plugins install`. Если `git` не установлен — скачивает tarball-архив с GitHub.
 
 ### Вариант 2: Вручную
 
@@ -38,91 +46,31 @@
     ./install.sh max
     ./install.sh routerai-imagen
 
-### Установка напрямую (без install.sh)
-
-    hermes plugins install temga/hermes-routerai-plugin --enable
-    hermes plugins install temga/hermes-neuraldeep-chat --enable
-    hermes plugins install temga/max-hermes-plugin --enable
-    hermes plugins install temga/hermes-plugin-routerai-imagegen --enable
-
 ### Как это работает
 
-Все плагины регистрируются через систему плагинов Hermes (`hermes plugins install temga/<repo> --enable`). Hermes сам клонирует репозиторий, устанавливает зависимости и регистрирует плагин. После установки плагин обнаруживается автоматически — никаких ручных symlink или `pip install` не требуется.
+Все плагины устанавливаются через `hermes plugins install temga/<repo> --enable`. Hermes клонирует репозиторий, запрашивает API-ключи (благодаря `requires_env` в `plugin.yaml`) и регистрирует плагин.
+
+**Model-provider плагины** (RouterAI, NeuralDeep) требуют дополнительного шага. `hermes plugins install` клонирует репозиторий плоско в `~/.hermes/plugins/<name>/`, но Provider Registry (реестр провайдеров Hermes) сканирует только `~/.hermes/plugins/model-providers/<name>/`. Без симлинка провайдер не появится в `hermes model`. Скрипт `install.sh` создаёт симлинк автоматически:
+
+```
+~/.hermes/plugins/routerai-provider/        ← hermes plugins install (плоско)
+~/.hermes/plugins/model-providers/routerai  ← симлинк → routerai-provider
+```
+
+Platform и backend плагины (MAX, RouterAI Image Gen) работают без симлинка — PluginManager импортирует их напрямую из плоского каталога.
 
 ## Настройка
 
-Hermes хранит секреты в `~/.hermes/.env`, а не через `export`. Можно также использовать `hermes setup` — мастер настройки запросит ключи автоматически (благодаря `requires_env` в `plugin.yaml`).
+Hermes хранит секреты в `~/.hermes/.env`, а не через `export`. После установки запустите `hermes setup` — мастер настройки запросит нужные API-ключи автоматически (благодаря `requires_env` в `plugin.yaml` каждого плагина).
 
-### RouterAI (model-provider)
+Подробная настройка каждого плагина — в его собственном README:
 
-Добавьте в `~/.hermes/.env`:
-
-    ROUTERAI_API_KEY=ваш-api-ключ
-
-Выбор провайдера в Hermes:
-
-    hermes model
-
-Выберите `routerai` из списка.
-
-### NeuralDeep (model-provider)
-
-Добавьте в `~/.hermes/.env`:
-
-    NEURALDEEP_API_KEY=ваш-api-ключ
-
-Выбор провайдера в Hermes:
-
-    hermes model
-
-Выберите `neuraldeep` из списка. Модели: `gpt-oss-120b`, `qwen3.6-35b-a3b`, `gemma-4-31b`.
-
-### MAX Messenger (platform)
-
-Добавьте в `~/.hermes/.env`:
-
-    MAX_BOT_TOKEN=токен_бота
-    MAX_WEBHOOK_URL=https://ваш-домен/max/webhook
-    MAX_WEBHOOK_SECRET=секрет_5_256_символов
-
-Конфигурация `~/.hermes/config.yaml`:
-
-```yaml
-plugins:
-  enabled:
-    - max
-
-gateway:
-  platforms:
-    max:
-      enabled: true
-      extra:
-        burst_merge_seconds: 2.0
-        busy_text_mode: queue
-        busy_text_debounce_seconds: 1.5
-        webhook_host: "0.0.0.0"
-        webhook_port: 8088
-        webhook_path: "/max/webhook"
-```
-
-Подробности — в [README MAX-плагина](platforms/max/README.md).
-
-### RouterAI Image Gen (backend)
-
-Использует тот же `ROUTERAI_API_KEY`, что и model-provider. Настройка в `~/.hermes/config.yaml`:
-
-```yaml
-image_gen:
-  provider: routerai
-  model: openai/gpt-image-2
-```
-
-Или через CLI:
-
-    hermes config set image_gen.provider routerai
-    hermes config set image_gen.model openai/gpt-image-2
-
-Поддерживаемые модели: GPT Image, Flux, Seedream, Gemini, Krea, Recraft и др. (38+ моделей). Полный список — в [README плагина](backends/routerai-imagegen/README.md).
+| Плагин | README |
+|---|---|
+| RouterAI | [model-providers/routerai/README.md](model-providers/routerai/README.md) |
+| NeuralDeep | [model-providers/neuraldeep/README.md](model-providers/neuraldeep/README.md) |
+| MAX Messenger | [platforms/max/README.md](platforms/max/README.md) |
+| RouterAI Image Gen | [backends/routerai-imagegen/README.md](backends/routerai-imagegen/README.md) |
 
 ## Обновление
 
@@ -168,12 +116,6 @@ hermes-ru-ecosystem/
         ├── plugin.yaml
         └── README.md
 ```
-
-## Известные особенности
-
-### EXPENSIVE MODEL WARNING (RouterAI)
-
-RouterAI отдаёт цены в рублях через `/models` API. Hermes предполагает доллары, поэтому при выборе некоторых моделей может появляться предупреждение о дорогой модели. Реальная цена в долларах ниже порогов. Просто подтвердите выбор («Switch anyway»). Подробности — в [README RouterAI](model-providers/routerai/README.md).
 
 ## Лицензия
 
