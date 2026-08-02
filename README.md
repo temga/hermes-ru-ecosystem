@@ -1,14 +1,18 @@
+<p align="center">
+  <img src="assets/banner.webp" alt="Hermes RU Ecosystem" width="100%">
+</p>
+
 # Плагины российской экосистемы для Hermes Agent
 
 [![GitHub](https://img.shields.io/badge/GitHub-temga%2Fhermes--ru--ecosystem-blue)](https://github.com/temga/hermes-ru-ecosystem)
 
-Набор плагинов для [Hermes Agent](https://github.com/NousResearch/hermes-agent), обеспечивающих работу с российскими сервисами: API-провайдеры, мессенджеры и генерация изображений.
-
-> **Быстрый старт:** одна команда установит и Hermes Agent, и все плагины российской экосистемы:
+> #### Геометрия сильнее декорации
 >
->     curl -fsSL https://raw.githubusercontent.com/temga/hermes-ru-ecosystem/main/install.sh | bash
+> [Hermes Agent](https://github.com/NousResearch/hermes-agent) — открытый AI-агент от Nous Research. Мощный, расширяемый, с поддержкой десятков платформ. Но он спроектирован в мире, где OpenAI, Anthropic и Telegram работают из коробки.
 >
-> Если Hermes уже установлен — установятся только плагины.
+> В 1920-е годы Россию отрезали от Европы — но Малевич, Татлин, Лисицкий и Родченко не остановились. Они построили авангард — язык, который Европа потом учила. Изоляция стала материалом, а не приговором.
+>
+> Сегодня ограничений снова много, но останавливаться никто не собирается. Этот репозиторий — набор плагинов для Hermes Agent: провайдеры моделей, мессенджеры, генерация изображений. Открытый код, MIT.
 
 ## Состав
 
@@ -19,49 +23,46 @@
 | **MAX Messenger** | platform | [temga/max-hermes-plugin](https://github.com/temga/max-hermes-plugin) |
 | **RouterAI Image Gen** | backend (image generation) | [temga/hermes-plugin-routerai-imagegen](https://github.com/temga/hermes-plugin-routerai-imagegen) |
 
-Все плагины устанавливаются единым способом — через встроенный менеджер плагинов Hermes:
+## Быстрый старт
 
-    hermes plugins install temga/<repo> --enable
+Одна команда установит и Hermes Agent, и все плагины:
+
+```
+curl -fsSL https://raw.githubusercontent.com/temga/hermes-ru-ecosystem/main/install.sh | bash
+```
+
+Если Hermes уже установлен — установятся только плагины.
 
 ## Установка
 
-Скрипт `install.sh` — это **основной способ установки нового инстанса Hermes Agent** с плагинами российской экосистемы. Если Hermes ещё не установлен, скрипт автоматически установит его из GitHub (`github.com/NousResearch/hermes-agent`) — официальный установщик `hermes-agent.nousresearch.com` недоступен из России. Если Hermes уже установлен — скрипт сразу перейдёт к установке плагинов.
-
 ### Вариант 1: One-liner (рекомендуется)
 
-    curl -fsSL https://raw.githubusercontent.com/temga/hermes-ru-ecosystem/main/install.sh | bash
+```
+curl -fsSL https://raw.githubusercontent.com/temga/hermes-ru-ecosystem/main/install.sh | bash
+```
 
-Скрипт клонирует репозиторий с сабмодулями в `~/.hermes/hermes-ru-ecosystem`, при необходимости устанавливает Hermes Agent, а затем устанавливает все плагины через `hermes plugins install`. Если `git` не установлен — скачивает tarball-архив с GitHub.
+Скрипт клонирует репозиторий с сабмодулями в `~/.hermes/hermes-ru-ecosystem`, при необходимости устанавливает Hermes Agent из GitHub, а затем устанавливает все плагины через `hermes plugins install`. Если `git` не установлен — скачивает tarball-архив.
 
 ### Вариант 2: Вручную
 
-    git clone --recursive https://github.com/temga/hermes-ru-ecosystem.git
-    cd hermes-ru-ecosystem
-    ./install.sh
+```
+git clone --recursive https://github.com/temga/hermes-ru-ecosystem.git
+cd hermes-ru-ecosystem
+./install.sh
+```
 
 ### Установка отдельных плагинов
 
-    ./install.sh routerai
-    ./install.sh neuraldeep
-    ./install.sh max
-    ./install.sh routerai-imagen
-
-### Как это работает
-
-Все плагины устанавливаются через `hermes plugins install temga/<repo> --enable`. Hermes клонирует репозиторий, запрашивает API-ключи (благодаря `requires_env` в `plugin.yaml`) и регистрирует плагин.
-
-**Model-provider плагины** (RouterAI, NeuralDeep) требуют дополнительного шага. `hermes plugins install` клонирует репозиторий плоско в `~/.hermes/plugins/<name>/`, но Provider Registry (реестр провайдеров Hermes) сканирует только `~/.hermes/plugins/model-providers/<name>/`. Без симлинка провайдер не появится в `hermes model`. Скрипт `install.sh` создаёт симлинк автоматически:
-
 ```
-~/.hermes/plugins/routerai-provider/        ← hermes plugins install (плоско)
-~/.hermes/plugins/model-providers/routerai  ← симлинк → routerai-provider
+./install.sh routerai
+./install.sh neuraldeep
+./install.sh max
+./install.sh routerai-imagen
 ```
-
-Platform и backend плагины (MAX, RouterAI Image Gen) работают без симлинка — PluginManager импортирует их напрямую из плоского каталога.
 
 ## Настройка
 
-Hermes хранит секреты в `~/.hermes/.env`, а не через `export`. После установки запустите `hermes setup` — мастер настройки запросит нужные API-ключи автоматически (благодаря `requires_env` в `plugin.yaml` каждого плагина).
+Hermes хранит секреты в `~/.hermes/.env`. После установки запустите `hermes setup` — мастер настройки запросит нужные API-ключи автоматически.
 
 Подробная настройка каждого плагина — в его собственном README:
 
@@ -76,16 +77,20 @@ Hermes хранит секреты в `~/.hermes/.env`, а не через `expo
 
 ### Если установлен через git
 
-    cd ~/.hermes/hermes-ru-ecosystem
-    git pull
-    git submodule update --remote
-    ./install.sh
+```
+cd ~/.hermes/hermes-ru-ecosystem
+git pull
+git submodule update --remote
+./install.sh
+```
 
 ### Если установлен через one-liner
 
 Просто запустите ту же команду снова:
 
-    curl -fsSL https://raw.githubusercontent.com/temga/hermes-ru-ecosystem/main/install.sh | bash
+```
+curl -fsSL https://raw.githubusercontent.com/temga/hermes-ru-ecosystem/main/install.sh | bash
+```
 
 ## Структура
 
