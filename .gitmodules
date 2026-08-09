@@ -10,3 +10,6 @@
 [submodule "model-providers/neuraldeep"]
 	path = model-providers/neuraldeep
 	url = https://github.com/temga/hermes-neuraldeep-chat.git
+[submodule "backends/neuraldeep-search"]
+	path = backends/neuraldeep-search
+	url = https://github.com/temga/hermes-plugin-neuraldeep-search.git

@@ -22,6 +22,7 @@
 | **NeuralDeep** | model-provider | [temga/hermes-neuraldeep-chat](https://github.com/temga/hermes-neuraldeep-chat) |
 | **MAX Messenger** | platform | [temga/max-hermes-plugin](https://github.com/temga/max-hermes-plugin) |
 | **RouterAI Image Gen** | backend (image generation) | [temga/hermes-plugin-routerai-imagegen](https://github.com/temga/hermes-plugin-routerai-imagegen) |
+| **NeuralDeep Search** | backend (web search) | [temga/hermes-plugin-neuraldeep-search](https://github.com/temga/hermes-plugin-neuraldeep-search) |
 
 ## Быстрый старт
 
@@ -58,6 +59,7 @@ cd hermes-ru-ecosystem
 ./install.sh neuraldeep
 ./install.sh max
 ./install.sh routerai-imagen
+./install.sh neuraldeep-search
 ```
 
 ## Настройка
@@ -72,6 +74,7 @@ Hermes хранит секреты в `~/.hermes/.env`. После устано�
 | NeuralDeep | [model-providers/neuraldeep/README.md](model-providers/neuraldeep/README.md) |
 | MAX Messenger | [platforms/max/README.md](platforms/max/README.md) |
 | RouterAI Image Gen | [backends/routerai-imagegen/README.md](backends/routerai-imagegen/README.md) |
+| NeuralDeep Search | [backends/neuraldeep-search/README.md](backends/neuraldeep-search/README.md) |
 
 ## Обновление
 
@@ -118,6 +121,11 @@ hermes-ru-ecosystem/
 └── backends/
     └── routerai-imagegen/                  # git submodule → hermes-plugin-routerai-imagegen
         ├── __init__.py                     # register(ctx) → ctx.register_image_gen_provider(...)
+        ├── plugin.yaml
+        └── README.md
+    └── neuraldeep-search/                  # git submodule → hermes-plugin-neuraldeep-search
+        ├── __init__.py                     # register(ctx) → ctx.register_web_search_provider(...)
+        ├── provider.py                     # NeuralDeepWebSearchProvider (search + extract)
         ├── plugin.yaml
         └── README.md
 ```

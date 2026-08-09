@@ -20,6 +20,7 @@
 #   ./install.sh neuraldeep   — установить только NeuralDeep (model-provider)
 #   ./install.sh max          — установить только MAX (platform)
 #   ./install.sh routerai-imagen — установить только RouterAI Image Gen (backend)
+#   ./install.sh neuraldeep-search — установить только NeuralDeep Search (backend)
 #
 set -euo pipefail
 
@@ -137,6 +138,7 @@ declare -A PLUGINS=(
     ["neuraldeep"]="hermes-neuraldeep-chat"
     ["max"]="max-hermes-plugin"
     ["routerai-imagen"]="hermes-plugin-routerai-imagegen"
+    ["neuraldeep-search"]="hermes-plugin-neuraldeep-search"
 )
 
 # Model-provider плагины требуют дополнительного шага после install.
